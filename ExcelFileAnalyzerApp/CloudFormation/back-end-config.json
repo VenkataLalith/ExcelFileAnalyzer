@@ -1,0 +1,878 @@
+{
+    "AWSTemplateFormatVersion":"2010-09-09",
+    "Description":"AWS CloudFormation Template To create an API Gateway with multiple resources triggering lambda functions. It creates two s3 buckets and SNS, SQS topics",
+    "Resources":{
+		"GraphMessageQueue":{
+          "Properties":{
+             "QueueName":"ImageUrlQueue",
+             "VisibilityTimeout":120
+          },
+          "Type":"AWS::SQS::Queue"
+    
+       },
+       "PublishGraphSNSTopic":{
+          "Type":"AWS::SNS::Topic",
+          "Properties":{
+             "DisplayName":"acds23b00945727",
+             "TopicName":"acds23b00945727"
+          }
+       },
+       "FileUploader":{
+          "Type":"AWS::Lambda::Function",
+          "Properties":{
+             "FunctionName":"FileUploader",
+             "Code":{
+                "S3Bucket":"acdtermprojectb00945727",
+                "S3Key":"uploadFile.zip"
+             },
+             "Description":"Used to read the excel file from user and upload it to s3 bucket",
+             "Handler":"index.handler",
+             "Role":"arn:aws:iam::621688211331:role/LabRole",
+             "Runtime":"nodejs18.x",
+             "Timeout":120
+          }
+       },
+       "GraphUpload":{
+        "Type":"AWS::Lambda::Function",
+        "Properties":{
+           "FunctionName":"GraphUpload",
+           "Code":{
+              "S3Bucket":"acdtermprojectb00945727",
+              "S3Key":"uploadImageLambda.zip"
+           },
+           "Description":"Used to upload graph image to the s3 bucket",
+           "Handler":"index.handler",
+           "Role":"arn:aws:iam::621688211331:role/LabRole",
+           "Runtime":"nodejs18.x",
+           "Timeout":120
+        }
+     },
+     "PushToQueueLambda":{
+        "Type":"AWS::Lambda::Function",
+        "Properties":{
+           "FunctionName":"PushToQueueLambda",
+           "Code":{
+              "S3Bucket":"acdtermprojectb00945727",
+              "S3Key":"publishToQueue.zip"
+           },
+           "Description":"Used to push the message containing image url to the SQS Queue",
+           "Handler":"index.handler",
+           "Role":"arn:aws:iam::621688211331:role/LabRole",
+           "Runtime":"nodejs18.x",
+           "Timeout":120
+        }
+     },
+     "PublishToTopicLambda":{
+        "Type":"AWS::Lambda::Function",
+        "Properties":{
+           "FunctionName":"PublishToTopicLambda",
+           "Code":{
+              "S3Bucket":"acdtermprojectb00945727",
+              "S3Key":"sns.zip"
+           },
+           "Description":"Triggered whenever SQS queue receives message and process it and publish it to the SNS topic",
+           "Handler":"index.handler",
+           "Role":"arn:aws:iam::621688211331:role/LabRole",
+           "Runtime":"nodejs18.x",
+           "Timeout":120
+        }
+     },
+     "FetchFilesList":{
+        "Type":"AWS::Lambda::Function",
+        "Properties":{
+           "FunctionName":"FetchFilesList",
+           "Code":{
+              "S3Bucket":"acdtermprojectb00945727",
+              "S3Key":"fetchListOfFiles.zip"
+           },
+           "Description":"Used to fetch the list of files present in the s3 bucket and send it to the front end",
+           "Handler":"index.handler",
+           "Role":"arn:aws:iam::621688211331:role/LabRole",
+           "Runtime":"nodejs18.x",
+           "Timeout":120
+        }
+     },
+     "FetchFileData":{
+        "Type":"AWS::Lambda::Function",
+        "Properties":{
+           "FunctionName":"FetchFileData",
+           "Code":{
+              "S3Bucket":"acdtermprojectb00945727",
+              "S3Key":"cloudData.zip"
+           },
+           "Description":"Used to send the data of file to the front-end user",
+           "Handler":"index.handler",
+           "Role":"arn:aws:iam::621688211331:role/LabRole",
+           "Runtime":"nodejs18.x",
+           "Timeout":120
+        }
+     },
+     
+       "lambdaEventSourceMapping":{
+          "Type":"AWS::Lambda::EventSourceMapping",
+          "Properties":{
+             "BatchSize":1,
+             "EventSourceArn":"arn:aws:sqs:us-east-1:621688211331:ImageUrlQueue",
+             "FunctionName":{
+                "Ref":"PublishToTopicLambda"
+             }
+          }
+       },
+       "S3Bucketexcel": {
+          "Type": "AWS::S3::Bucket",
+          "Properties": {
+              "BucketName": "acds23termprojectb00945727excel"
+          }
+      },
+      "S3Bucketimages": {
+        "Type": "AWS::S3::Bucket",
+        "Properties": {
+            "BucketName": "acds23termprojectb00945727graphimages"
+        }
+    },
+      "graphGeneratorApiGateway": {
+       "Type": "AWS::ApiGateway::RestApi",
+       "Properties": {
+           "Name": "graphGeneratorApiGateway",
+           "EndpointConfiguration": {
+               "Types": [
+                   "REGIONAL"
+               ]
+           }
+       }
+   },
+   "resourceUploadFile": {
+       "Type": "AWS::ApiGateway::Resource",
+       "Properties": {
+           "RestApiId": {
+               "Ref": "graphGeneratorApiGateway"
+           },
+           "ParentId": {
+               "Fn::GetAtt": [
+                   "graphGeneratorApiGateway",
+                   "RootResourceId"
+               ]
+           },
+           "PathPart": "uploadFile"
+       },
+       "DependsOn": [
+           "graphGeneratorApiGateway"
+       ]
+   },
+   "resourceUploadImage": {
+    "Type": "AWS::ApiGateway::Resource",
+    "Properties": {
+        "RestApiId": {
+            "Ref": "graphGeneratorApiGateway"
+        },
+        "ParentId": {
+            "Fn::GetAtt": [
+                "graphGeneratorApiGateway",
+                "RootResourceId"
+            ]
+        },
+        "PathPart": "uploadImage"
+    },
+    "DependsOn": [
+        "graphGeneratorApiGateway"
+    ]
+    },
+    "resourcePushToQ": {
+        "Type": "AWS::ApiGateway::Resource",
+        "Properties": {
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "ParentId": {
+                "Fn::GetAtt": [
+                    "graphGeneratorApiGateway",
+                    "RootResourceId"
+                ]
+            },
+            "PathPart": "pushToQueue"
+        },
+        "DependsOn": [
+            "graphGeneratorApiGateway"
+        ]
+    },
+    "resourceToGetFilesList": {
+        "Type": "AWS::ApiGateway::Resource",
+        "Properties": {
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "ParentId": {
+                "Fn::GetAtt": [
+                    "graphGeneratorApiGateway",
+                    "RootResourceId"
+                ]
+            },
+            "PathPart": "getFilesList"
+        },
+        "DependsOn": [
+            "graphGeneratorApiGateway"
+        ]
+    },
+    "resourceGetCloudData": {
+        "Type": "AWS::ApiGateway::Resource",
+        "Properties": {
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "ParentId": {
+                "Fn::GetAtt": [
+                    "graphGeneratorApiGateway",
+                    "RootResourceId"
+                ]
+            },
+            "PathPart": "getCloudData"
+        },
+        "DependsOn": [
+            "graphGeneratorApiGateway"
+        ]
+    },
+    "uploadFileCors": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceUploadFile"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "OPTIONS",
+            "Integration": {
+                "Type": "MOCK",
+                "IntegrationResponses": [
+                    {
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        },
+                        "ResponseTemplates": {
+                            "application/json": ""
+                        },
+                        "StatusCode": "200"
+                    }
+                ],
+                "PassthroughBehavior": "NEVER",
+                "RequestTemplates": {
+                    "application/json": "{\"statusCode\": 200}"
+                }
+            },
+            "MethodResponses": [
+                {
+                    "ResponseModels": {
+                        "application/json": "Empty"
+                    },
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        }
+    },
+    "PushToQueueCors": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourcePushToQ"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "OPTIONS",
+            "Integration": {
+                "Type": "MOCK",
+                "IntegrationResponses": [
+                    {
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        },
+                        "ResponseTemplates": {
+                            "application/json": ""
+                        },
+                        "StatusCode": "200"
+                    }
+                ],
+                "PassthroughBehavior": "NEVER",
+                "RequestTemplates": {
+                    "application/json": "{\"statusCode\": 200}"
+                }
+            },
+            "MethodResponses": [
+                {
+                    "ResponseModels": {
+                        "application/json": "Empty"
+                    },
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        }
+    },
+    "GetFilesListCors": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceToGetFilesList"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "OPTIONS",
+            "Integration": {
+                "Type": "MOCK",
+                "IntegrationResponses": [
+                    {
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        },
+                        "ResponseTemplates": {
+                            "application/json": ""
+                        },
+                        "StatusCode": "200"
+                    }
+                ],
+                "PassthroughBehavior": "NEVER",
+                "RequestTemplates": {
+                    "application/json": "{\"statusCode\": 200}"
+                }
+            },
+            "MethodResponses": [
+                {
+                    "ResponseModels": {
+                        "application/json": "Empty"
+                    },
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        }
+    },
+    "GetCloudDataCors": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceGetCloudData"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "OPTIONS",
+            "Integration": {
+                "Type": "MOCK",
+                "IntegrationResponses": [
+                    {
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        },
+                        "ResponseTemplates": {
+                            "application/json": ""
+                        },
+                        "StatusCode": "200"
+                    }
+                ],
+                "PassthroughBehavior": "NEVER",
+                "RequestTemplates": {
+                    "application/json": "{\"statusCode\": 200}"
+                }
+            },
+            "MethodResponses": [
+                {
+                    "ResponseModels": {
+                        "application/json": "Empty"
+                    },
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        }
+    },
+    "uploadImageCors": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceUploadImage"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "OPTIONS",
+            "Integration": {
+                "Type": "MOCK",
+                "IntegrationResponses": [
+                    {
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        },
+                        "ResponseTemplates": {
+                            "application/json": ""
+                        },
+                        "StatusCode": "200"
+                    }
+                ],
+                "PassthroughBehavior": "NEVER",
+                "RequestTemplates": {
+                    "application/json": "{\"statusCode\": 200}"
+                }
+            },
+            "MethodResponses": [
+                {
+                    "ResponseModels": {
+                        "application/json": "Empty"
+                    },
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        }
+    },
+    "graphGeneratorApiGatewayUploadFileEndpoint": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceUploadFile"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+                "Type": "AWS",
+                "IntegrationHttpMethod": "POST",
+                "Uri": {
+                    "Fn::Sub": [
+                        "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SUBSCRIBE_LAMBDA}/invocations",
+                        {
+                            "SUBSCRIBE_LAMBDA": {
+                                "Fn::GetAtt": [
+                                    "FileUploader",
+                                    "Arn"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "IntegrationResponses": [
+                    {
+                        "StatusCode": 200,
+                        "ResponseTemplates": {
+                            "application/json": "$input.json('$')"
+                        },
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        }
+                    }
+                ],
+                "RequestTemplates": {
+                    "application/json": "$input.json('$')"
+                }
+            },
+            "RequestParameters": {
+                "method.request.querystring.name": false
+            },
+            "MethodResponses": [
+                {
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        },
+        "DependsOn": [
+            "resourceUploadFile",
+            "FileUploader"
+        ]
+    },
+    "graphGeneratorApiGatewayUploadImageEndpoint": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceUploadImage"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+                "Type": "AWS",
+                "IntegrationHttpMethod": "POST",
+                "Uri": {
+                    "Fn::Sub": [
+                        "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SUBSCRIBE_LAMBDA}/invocations",
+                        {
+                            "SUBSCRIBE_LAMBDA": {
+                                "Fn::GetAtt": [
+                                    "GraphUpload",
+                                    "Arn"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "IntegrationResponses": [
+                    {
+                        "StatusCode": 200,
+                        "ResponseTemplates": {
+                            "application/json": "$input.json('$')"
+                        },
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        }
+                    }
+                ],
+                "RequestTemplates": {
+                    "application/json": "$input.json('$')"
+                }
+            },
+            "RequestParameters": {
+                "method.request.querystring.name": false
+            },
+            "MethodResponses": [
+                {
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        },
+        "DependsOn": [
+            "resourceUploadImage",
+            "GraphUpload"
+        ]
+    },
+    "graphGeneratorApiGatewayPushToQueueEndpoint": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourcePushToQ"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+                "Type": "AWS",
+                "IntegrationHttpMethod": "POST",
+                "Uri": {
+                    "Fn::Sub": [
+                        "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SUBSCRIBE_LAMBDA}/invocations",
+                        {
+                            "SUBSCRIBE_LAMBDA": {
+                                "Fn::GetAtt": [
+                                    "PushToQueueLambda",
+                                    "Arn"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "IntegrationResponses": [
+                    {
+                        "StatusCode": 200,
+                        "ResponseTemplates": {
+                            "application/json": "$input.json('$')"
+                        },
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        }
+                    }
+                ],
+                "RequestTemplates": {
+                    "application/json": "$input.json('$')"
+                }
+            },
+            "RequestParameters": {
+                "method.request.querystring.name": false
+            },
+            "MethodResponses": [
+                {
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        },
+        "DependsOn": [
+            "resourcePushToQ",
+            "PushToQueueLambda"
+        ]
+    },
+    "graphGeneratorApiGatewayGetFilesListEndpoint": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceToGetFilesList"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+                "Type": "AWS",
+                "IntegrationHttpMethod": "POST",
+                "Uri": {
+                    "Fn::Sub": [
+                        "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SUBSCRIBE_LAMBDA}/invocations",
+                        {
+                            "SUBSCRIBE_LAMBDA": {
+                                "Fn::GetAtt": [
+                                    "FetchFilesList",
+                                    "Arn"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "IntegrationResponses": [
+                    {
+                        "StatusCode": 200,
+                        "ResponseTemplates": {
+                            "application/json": "$input.json('$')"
+                        },
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        }
+                    }
+                ],
+                "RequestTemplates": {
+                    "application/json": "$input.json('$')"
+                }
+            },
+            "RequestParameters": {
+                "method.request.querystring.name": false
+            },
+            "MethodResponses": [
+                {
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        },
+        "DependsOn": [
+            "resourceUploadFile",
+            "FetchFilesList"
+        ]
+    },
+    "graphGeneratorApiGatewayGetFileDataEndpoint": {
+        "Type": "AWS::ApiGateway::Method",
+        "Properties": {
+            "ResourceId": {
+                "Ref": "resourceGetCloudData"
+            },
+            "RestApiId": {
+                "Ref": "graphGeneratorApiGateway"
+            },
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+                "Type": "AWS",
+                "IntegrationHttpMethod": "POST",
+                "Uri": {
+                    "Fn::Sub": [
+                        "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SUBSCRIBE_LAMBDA}/invocations",
+                        {
+                            "SUBSCRIBE_LAMBDA": {
+                                "Fn::GetAtt": [
+                                    "FetchFileData",
+                                    "Arn"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "IntegrationResponses": [
+                    {
+                        "StatusCode": 200,
+                        "ResponseTemplates": {
+                            "application/json": "$input.json('$')"
+                        },
+                        "ResponseParameters": {
+                            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                            "method.response.header.Access-Control-Allow-Origin": "'*'"
+                        }
+                    }
+                ],
+                "RequestTemplates": {
+                    "application/json": "$input.json('$')"
+                }
+            },
+            "RequestParameters": {
+                "method.request.querystring.name": false
+            },
+            "MethodResponses": [
+                {
+                    "ResponseParameters": {
+                        "method.response.header.Access-Control-Allow-Headers": true,
+                        "method.response.header.Access-Control-Allow-Methods": true,
+                        "method.response.header.Access-Control-Allow-Origin": true
+                    },
+                    "StatusCode": "200"
+                }
+            ]
+        },
+        "DependsOn": [
+            "resourceGetCloudData",
+            "FetchFileData"
+        ]
+    },
+   
+   "graphGeneratorApiGatewayDeployment": {
+       "Type": "AWS::ApiGateway::Deployment",
+       "Properties": {
+           "RestApiId": {
+               "Ref": "graphGeneratorApiGateway"
+           },
+           "StageName": "production"
+       },
+       "DependsOn": [
+           "graphGeneratorApiGatewayUploadFileEndpoint",
+           "graphGeneratorApiGatewayGetFileDataEndpoint",
+           "graphGeneratorApiGatewayGetFilesListEndpoint",
+           "graphGeneratorApiGatewayPushToQueueEndpoint",
+           "graphGeneratorApiGatewayUploadImageEndpoint"
+
+       ]
+   },
+   "graphGeneratorApiGatewayUploadFilePermission": {
+    "Type": "AWS::Lambda::Permission",
+    "Properties": {
+        "FunctionName": {
+            "Ref": "FileUploader"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+            "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${graphGeneratorApiGateway}/*/*/*"
+        }
+    },
+    "DependsOn": [
+        "graphGeneratorApiGatewayDeployment"
+    ]
+},
+"groupDotsUploadImagePermission": {
+    "Type": "AWS::Lambda::Permission",
+    "Properties": {
+        "FunctionName": {
+            "Ref": "GraphUpload"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+            "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${graphGeneratorApiGateway}/*/*/*"
+        }
+    },
+    "DependsOn": [
+        "graphGeneratorApiGatewayDeployment"
+    ]
+},
+"graphGeneratorApiGatewayPushToQPermission": {
+    "Type": "AWS::Lambda::Permission",
+    "Properties": {
+        "FunctionName": {
+            "Ref": "PushToQueueLambda"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+            "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${graphGeneratorApiGateway}/*/*/*"
+        }
+    },
+    "DependsOn": [
+        "graphGeneratorApiGatewayDeployment"
+    ]
+},
+"graphGeneratorApiGatewayGetFilesListPermission": {
+    "Type": "AWS::Lambda::Permission",
+    "Properties": {
+        "FunctionName": {
+            "Ref": "FetchFilesList"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+            "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${graphGeneratorApiGateway}/*/*/*"
+        }
+    },
+    "DependsOn": [
+        "graphGeneratorApiGatewayDeployment"
+    ]
+},
+"graphGeneratorApiGatewayGetFileDataPermission": {
+    "Type": "AWS::Lambda::Permission",
+    "Properties": {
+        "FunctionName": {
+            "Ref": "FetchFileData"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+            "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${graphGeneratorApiGateway}/*/*/*"
+        }
+    },
+    "DependsOn": [
+        "graphGeneratorApiGatewayDeployment"
+    ]
+}
+    }
+ }
